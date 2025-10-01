@@ -24,8 +24,7 @@
 // =============================
 // ADC (Analog to Digital Converter) Configuration
 // =============================
-#define ADC_SAMPLES 64      // Oversampling: number of samples per reading for better precision
-#define ADC_VREF 1100       // Reference voltage in mV (used for calibration)
+#define ADC_VREF 1000       // Reference voltage in mV (used for calibration)
 
 // =============================
 // Recording Settings
@@ -44,6 +43,8 @@ unsigned long lastSampleTime = 0;       // Timestamp of last sample
 esp_adc_cal_characteristics_t adc_chars;// ADC calibration characteristics
 unsigned long recordingStartTime = 0; // Time when recording started (ms)
 unsigned long recordingEndTime = 0;   // Time when recording ended (ms)
+float adcOffset = 0.0; // ADC offset (in volts) measured during calibration
+int ADC_SAMPLES = 64;      // Oversampling: number of samples per reading for better precision (now variable)
 
 // =============================
 // Function Declarations
@@ -58,6 +59,7 @@ void replayVoltages();
 void printStatus();
 void printHelp();
 void printData();
+void calibrateADCOffset();
 
 // =============================
 // Arduino Setup Function
@@ -65,20 +67,18 @@ void printData();
 void setup() {
     Serial.begin(115200);   // Start serial communication at 115200 baud
     delay(1000);            // Wait for serial to initialize
-    
     pinMode(LED_PIN, OUTPUT);           // Set LED pin as output
     digitalWrite(LED_PIN, LOW);         // Turn off LED initially
-    
     Serial.println("=== ESP32 Simple Voltage Recorder ===");
     Serial.println("Memory-only version - no SD card needed!");
     Serial.println("Initializing...");
-    
     setupADC();    // Set up ADC for voltage readings
     setupDAC();    // Set up DAC for voltage replay
-    
+    Serial.println("Auto-calibrating ADC offset.");
+    delay(1000); // Wait 1 second for user to connect pin to GND
+    calibrateADCOffset();
     Serial.println("Setup complete!");
     printHelp();   // Show available commands
-    
     digitalWrite(LED_PIN, HIGH); // Turn on LED to indicate ready
 }
 
@@ -157,7 +157,25 @@ float readVoltageHighPrecision() {
     uint32_t average = total / ADC_SAMPLES;
     // Convert raw ADC value to millivolts using calibration
     uint32_t voltage_mv = esp_adc_cal_raw_to_voltage(average, &adc_chars);
-    return voltage_mv / 1000.0; // Convert to volts
+    float voltage = voltage_mv / 1000.0; // Convert to volts
+    // Subtract offset
+    voltage -= adcOffset;
+    if (voltage < 0) voltage = 0.0; // Clamp to zero
+    return voltage;
+}
+
+// Calibrate ADC offset (call with pin grounded)
+void calibrateADCOffset() {
+    Serial.println("Make sure the ADC pin is connected to GND during calibration.");
+    uint32_t total = 0;
+    for (int i = 0; i < ADC_SAMPLES; i++) {
+        total += adc1_get_raw(ADC1_CHANNEL_0);
+        delayMicroseconds(10);
+    }
+    uint32_t average = total / ADC_SAMPLES;
+    uint32_t voltage_mv = esp_adc_cal_raw_to_voltage(average, &adc_chars);
+    adcOffset = voltage_mv / 1000.0;
+    Serial.printf("ADC offset calibrated: %.4f V\n", adcOffset);
 }
 
 // =============================
@@ -200,9 +218,21 @@ void processSerialCommands() {
                 Serial.println("Invalid sample rate (1-10000 Hz)");
             }
         }
+        else if (command.startsWith("samples")) {
+            int newSamples = command.substring(7).toInt();
+            if (newSamples >= 1 && newSamples <= 1024) {
+                ADC_SAMPLES = newSamples;
+                Serial.printf("ADC samples per reading set to %d\n", ADC_SAMPLES);
+            } else {
+                Serial.println("Invalid ADC samples (1-1024)");
+            }
+        }
         else if (command.startsWith("read")) {
             float voltage = readVoltageHighPrecision();
             Serial.printf("Current voltage: %.4f V\n", voltage);
+        }
+        else if (command.startsWith("calibrate")) {
+            calibrateADCOffset();
         }
         else if (command.startsWith("help")) {
             printHelp();
@@ -360,7 +390,9 @@ void printHelp() {
     Serial.println("status        - Show system status");
     Serial.println("read          - Read current voltage");
     Serial.println("clear         - Clear sample buffer");
+    Serial.println("calibrate     - Calibrate ADC offset (run with pin grounded)");
     Serial.println("rate <Hz>     - Set sample rate (1-10000 Hz)");
+    Serial.println("samples <N>   - Set ADC samples per reading (1-1024)");
     Serial.println("help          - Show this help");
     Serial.println("\nConnections:");
     Serial.printf("Voltage input: GPIO%d (0-3.3V max!)\n", ADC_PIN);
