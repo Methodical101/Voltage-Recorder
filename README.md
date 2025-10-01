@@ -1,6 +1,6 @@
 # ESP32 High-Fidelity Voltage Recorder
 
-This project turns your ESP32 into a high-precision voltage recorder that captures analog voltages from an external source (0-3.3V range), stores them in memory, and can replay them using the built-in DAC. Perfect for capturing and reproducing sensor signals, waveforms, or any time-varying voltage patterns. No SD card needed - everything runs in memory!
+This project turns a ESP32 into a high-precision voltage recorder that captures analog voltages from an external source (0-3.3V range), stores them in memory, and can replay them using the built-in DAC. Perfect for capturing and reproducing sensor signals, waveforms, or any time-varying voltage patterns.
 
 ## Features
 
@@ -295,11 +295,3 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 ## License
 
 This project is open source. Please check the repository for license details.
-
-## Author
-
-Created by GitHub Copilot - September 2025
-
----
-
-**Enjoy your ESP32 Voltage Recorder!** 🎛️📊
