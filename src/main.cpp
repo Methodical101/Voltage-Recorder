@@ -397,8 +397,7 @@ void printHelp() {
     Serial.println("\nConnections:");
     Serial.printf("Voltage input: GPIO%d (0-3.3V max!)\n", ADC_PIN);
     Serial.printf("Voltage output: GPIO%d (DAC)\n", DAC_PIN);
-    Serial.printf("Max samples: %d (%.1f KB memory)\n", MAX_SAMPLES, (float)(MAX_SAMPLES * sizeof(float)) / 1024.0);
-    Serial.println("\nWARNING: Do not exceed 3.3V on input pin!");
+    Serial.printf("\nMax samples: %d (%.1f KB memory)\n", MAX_SAMPLES, (float)(MAX_SAMPLES * sizeof(float)) / 1024.0);
 }
 // =============================
 // END OF FILE
