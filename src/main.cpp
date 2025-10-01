@@ -3,9 +3,9 @@
 // =============================
 // This sketch lets your ESP32 record voltages from an external source (0-3.3V)
 // with high precision, store them in memory, and replay them using the DAC output.
-// You control everything via serial commands. No SD card needed!
+// You control everything via serial commands.
 //
-// Author: GitHub Copilot
+// Author: Christian Foster
 // Date: September 2025
 // =============================
 
