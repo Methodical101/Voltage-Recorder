@@ -314,6 +314,7 @@ void replayVoltages() {
     unsigned long replayStart = millis(); // Start timing
     unsigned long sampleInterval_us = 1000000UL / sampleRate;
     unsigned long nextSampleTime = micros();
+    float lastPrintedVoltage = -1.0; // Track last printed voltage for change detection
     for (int i = 0; i < sampleCount && !Serial.available(); i++) {
         float voltage = voltageBuffer[i];
         // Convert voltage to DAC value (0-255 for 0-3.3V)
@@ -322,9 +323,10 @@ void replayVoltages() {
         if (voltage < 0) voltage = 0;
         uint8_t dacValue = (uint8_t)(voltage * 255.0 / 3.3);
         dac_output_voltage(DAC_CHANNEL_1, dacValue); // Output voltage on DAC
-        // Print every 100th sample
-        if (i % 100 == 0) {
+        // Print every 50th sample OR when voltage changes significantly (>0.1V)
+        if (i % 50 == 0 || fabs(voltage - lastPrintedVoltage) > 0.1) {
             Serial.printf("Sample %d: %.4fV -> DAC %d\n", i, voltage, dacValue);
+            lastPrintedVoltage = voltage;
         }
         // Precise timing using micros()
         nextSampleTime += sampleInterval_us;
