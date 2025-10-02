@@ -70,7 +70,6 @@ void setup() {
     pinMode(LED_PIN, OUTPUT);           // Set LED pin as output
     digitalWrite(LED_PIN, LOW);         // Turn off LED initially
     Serial.println("=== ESP32 Simple Voltage Recorder ===");
-    Serial.println("Memory-only version - no SD card needed!");
     Serial.println("Initializing...");
     setupADC();    // Set up ADC for voltage readings
     setupDAC();    // Set up DAC for voltage replay
