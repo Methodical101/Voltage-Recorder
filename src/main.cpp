@@ -32,7 +32,7 @@
 // Recording Settings
 // =============================
 #define MAX_SAMPLES 5000    // Maximum number of samples to store in memory (about 20KB)
-#define BASELINE_SAMPLE_RATE 100 // Baseline sample rate in Hz
+#define BASELINE_SAMPLE_RATE 60 // Baseline sample rate in Hz
 #define BASELINE_ADC_SAMPLES 32  // Baseline ADC samples per reading
 #define DEFAULT_SAMPLE_RATE BASELINE_SAMPLE_RATE // Default sample rate in Hz (samples per second)
 
