@@ -123,10 +123,10 @@ void setupADC() {
     // Configure ADC1 for 12-bit resolution (0-4095)
     adc1_config_width(ADC_WIDTH_BIT_12);
     // Set attenuation to 11dB for full 0-3.3V range
-    adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_11);
+    adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_11db);
     
     // Calibrate ADC for accurate readings
-    esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, ADC_VREF, &adc_chars);
+    esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_11db, ADC_WIDTH_BIT_12, ADC_VREF, &adc_chars);
     
     if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF) {
         Serial.println("ADC: Using eFuse Vref");
