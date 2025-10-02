@@ -1,16 +1,11 @@
-## What's New
+# Release Notes
 
-### Added
-- `calibrate` command: Calibrates and corrects ADC offset for accurate voltage readings. Run with ADC pin grounded.
-- Automatic ADC offset calibration on startup, with user prompt and delay.
-- `samples <N>` command: Set the number of ADC samples averaged per reading (1–1024) for precision control.
+## Version: v1.1.1
 
-### Fixed
-- All voltage readings now subtract the measured offset for improved accuracy.
-- Improved validation and warnings for unsafe sample rates in the `rate <Hz>` command.
-
-### Improved
-- Help text updated to include new commands.
-- Enhanced user guidance and error messages for serial commands.
+### Recent Changes
+- Updated version display: Version is now shown at startup and set via `platformio.ini`.
+- Improved replay output: Serial printout during replay now shows voltage changes more frequently and with better formatting.
+- Text formatting: Enhanced help and status messages for clarity and consistency.
+- General patches and bug fixes for serial command handling and output.
 
 ---
