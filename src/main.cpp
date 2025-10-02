@@ -1,3 +1,5 @@
+// TODO pic + 3d print, card interception, research adc and dac + external ones bc apparently esp32 ones are bad, what is efuse vref and two point
+
 // =============================
 // ESP32 High-Fidelity Voltage Recorder
 // =============================
@@ -30,7 +32,9 @@
 // Recording Settings
 // =============================
 #define MAX_SAMPLES 5000    // Maximum number of samples to store in memory (about 20KB)
-#define DEFAULT_SAMPLE_RATE 100 // Default sample rate in Hz (samples per second)
+#define BASELINE_SAMPLE_RATE 100 // Baseline sample rate in Hz
+#define BASELINE_ADC_SAMPLES 32  // Baseline ADC samples per reading
+#define DEFAULT_SAMPLE_RATE BASELINE_SAMPLE_RATE // Default sample rate in Hz (samples per second)
 
 // =============================
 // Global Variables
@@ -38,13 +42,13 @@
 bool recording = false;                 // True if currently recording
 float voltageBuffer[MAX_SAMPLES];       // Buffer to store recorded voltages
 int sampleCount = 0;                    // Number of samples recorded
-int sampleRate = DEFAULT_SAMPLE_RATE;   // Current sample rate in Hz
+int sampleRate = BASELINE_SAMPLE_RATE;   // Current sample rate in Hz
 unsigned long lastSampleTime = 0;       // Timestamp of last sample
 esp_adc_cal_characteristics_t adc_chars;// ADC calibration characteristics
 unsigned long recordingStartTime = 0; // Time when recording started (ms)
 unsigned long recordingEndTime = 0;   // Time when recording ended (ms)
 float adcOffset = 0.0; // ADC offset (in volts) measured during calibration
-int ADC_SAMPLES = 64;      // Oversampling: number of samples per reading for better precision (now variable)
+int adcSamples = BASELINE_ADC_SAMPLES;      // Oversampling: number of samples per reading for better precision (now variable)
 
 // =============================
 // Function Declarations
@@ -150,11 +154,11 @@ void setupDAC() {
 float readVoltageHighPrecision() {
     uint32_t total = 0;
     // Take multiple samples and average them for better accuracy
-    for (int i = 0; i < ADC_SAMPLES; i++) {
+    for (int i = 0; i < adcSamples; i++) {
         total += adc1_get_raw(ADC1_CHANNEL_0); // Read raw ADC value
         delayMicroseconds(10); // Small delay between samples
     }
-    uint32_t average = total / ADC_SAMPLES;
+    uint32_t average = total / adcSamples;
     // Convert raw ADC value to millivolts using calibration
     uint32_t voltage_mv = esp_adc_cal_raw_to_voltage(average, &adc_chars);
     float voltage = voltage_mv / 1000.0; // Convert to volts
@@ -168,11 +172,11 @@ float readVoltageHighPrecision() {
 void calibrateADCOffset() {
     Serial.println("Make sure the ADC pin is connected to GND during calibration.");
     uint32_t total = 0;
-    for (int i = 0; i < ADC_SAMPLES; i++) {
+    for (int i = 0; i < adcSamples; i++) {
         total += adc1_get_raw(ADC1_CHANNEL_0);
         delayMicroseconds(10);
     }
-    uint32_t average = total / ADC_SAMPLES;
+    uint32_t average = total / adcSamples;
     uint32_t voltage_mv = esp_adc_cal_raw_to_voltage(average, &adc_chars);
     adcOffset = voltage_mv / 1000.0;
     Serial.printf("ADC offset calibrated: %.4f V\n", adcOffset);
@@ -211,8 +215,8 @@ void processSerialCommands() {
             if (newRate > 0 && newRate <= 10000) {
                 sampleRate = newRate;
                 Serial.printf("Sample rate set to %d Hz\n", sampleRate);
-                if (sampleRate > 200) {
-                    Serial.println("WARNING: Sample rate is above safe value (200 Hz). Recording and replay timing may be inaccurate!");
+                if (sampleRate > BASELINE_SAMPLE_RATE) {
+                    Serial.println("NOTICE: Sample rate is above baseline value. Recording and replay timing may be inaccurate!");
                 }
             } else {
                 Serial.println("Invalid sample rate (1-10000 Hz)");
@@ -221,8 +225,8 @@ void processSerialCommands() {
         else if (command.startsWith("samples")) {
             int newSamples = command.substring(7).toInt();
             if (newSamples >= 1 && newSamples <= 1024) {
-                ADC_SAMPLES = newSamples;
-                Serial.printf("ADC samples per reading set to %d\n", ADC_SAMPLES);
+                adcSamples = newSamples;
+                Serial.printf("ADC samples per reading set to %d\n", adcSamples);
             } else {
                 Serial.println("Invalid ADC samples (1-1024)");
             }
@@ -271,7 +275,22 @@ void stopRecording() {
     digitalWrite(LED_PIN, HIGH); // Turn LED on
     recordingEndTime = millis(); // Store end time
     Serial.printf("Recording stopped. Captured %d samples.\n", sampleCount);
-    Serial.printf("Actual recording duration: %.2f seconds\n", (recordingEndTime - recordingStartTime) / 1000.0);
+    Serial.printf("Duration: %.2f s\n", (recordingEndTime - recordingStartTime) / 1000.0);
+    Serial.printf("Expected: %.2f s\n", (float)sampleCount / sampleRate);
+    bool timingIssue = fabs(((recordingEndTime - recordingStartTime) / 1000.0) - ((float)sampleCount / sampleRate)) > 0.2 * ((float)sampleCount / sampleRate);
+    if (timingIssue) {
+        String warn = "WARNING: Actual duration deviates from expected. Possible causes:";
+        if (sampleRate > BASELINE_SAMPLE_RATE && adcSamples > BASELINE_ADC_SAMPLES) {
+            warn += " High sample rate and high ADC samples (oversampling) may be slowing down recording.";
+        } else if (sampleRate > BASELINE_SAMPLE_RATE) {
+            warn += " High sample rate may be slowing down recording.";
+        } else if (adcSamples > BASELINE_ADC_SAMPLES) {
+            warn += " High ADC samples (oversampling) may be slowing down recording.";
+        } else {
+            warn += " System or code delays.";
+        }
+        Serial.println(warn);
+    }
     Serial.println("Type 'show' to view data or 'replay' to replicate voltages.");
 }
 
@@ -342,13 +361,18 @@ void replayVoltages() {
     dac_output_voltage(DAC_CHANNEL_1, 0);
     Serial.println("Replay completed.");
     float replaySec = (replayEnd - replayStart) / 1000.0;
-    float expectedSec = (recordingEndTime > recordingStartTime) ? ((recordingEndTime - recordingStartTime) / 1000.0) : ((float)sampleCount / sampleRate);
-    Serial.printf("Expected duration: %.3f s, Replay duration: %.3f s\n", expectedSec, replaySec);
-    if (sampleRate > 200) {
-        Serial.println("WARNING: Replay rate is above safe value (200 Hz). Timing may be inaccurate!");
-    }
-    if (fabs(replaySec - expectedSec) > 0.2 * expectedSec) {
-        Serial.println("ERROR: Exceeded stable sample rate! Replay duration does not match expected duration. Lower your sample rate for reliable timing.");
+    float expectedSec = (float)sampleCount / sampleRate;
+    Serial.printf("Duration: %.2f s\n", replaySec);
+    Serial.printf("Expected: %.2f s\n", expectedSec);
+    bool timingIssue = fabs(replaySec - expectedSec) > 0.2 * expectedSec;
+    if (timingIssue) {
+        String warn = "WARNING: Replay duration does not match expected duration. Possible causes:";
+        if (sampleRate > BASELINE_SAMPLE_RATE) {
+            warn += " High sample rate may be causing timing issues during replay.";
+        } else {
+            warn += " System or code delays.";
+        }
+        Serial.println(warn);
     }
 }
 
@@ -360,8 +384,8 @@ void printStatus() {
     Serial.printf("Recording: %s\n", recording ? "YES" : "NO");
     Serial.printf("Samples in buffer: %d/%d\n", sampleCount, MAX_SAMPLES);
     Serial.printf("Sample rate: %d Hz\n", sampleRate);
-    if (sampleRate > 200) {
-        Serial.println("WARNING: Sample rate is above safe value (200 Hz). Recording and replay timing may be inaccurate!");
+    if (sampleRate > BASELINE_SAMPLE_RATE) {
+        Serial.println("NOTICE: Sample rate is above baseline value. Recording and replay timing may be inaccurate!");
     }
     Serial.printf("Memory usage: %.1f KB\n", (float)(sampleCount * sizeof(float)) / 1024.0);
     float currentVoltage = readVoltageHighPrecision();
